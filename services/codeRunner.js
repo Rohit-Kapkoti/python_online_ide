@@ -3,7 +3,6 @@ const path = require("path");
 const { spawn } = require("child_process");
 const { v4: uuid } = require("uuid");
 
-
 const runCode = (code, input) => {
     return new Promise((resolve, reject) => {
         const jobId = uuid();
@@ -15,45 +14,37 @@ const runCode = (code, input) => {
             fs.mkdirSync(tempDir, { recursive: true });
         }
 
+        // Write code to temp .py file
         fs.writeFileSync(codePath, code);
 
-        // Normalize Windows path for Docker
-        const normalizePath = (windowsPath) => {
-            return windowsPath.replace(/\\/g, '/');
-        };
-        const dockerPath = normalizePath(tempDir);
+        // Run python file directly using system python3
+        const isWindows = process.platform === "win32";
+        const pythonCmd = isWindows ? "python" : "python3";
+        const pythonProcess = spawn(pythonCmd, [codePath]);
 
-        // Create the Docker command using spawn
-        const dockerProcess = spawn("docker", [
-            "run",
-            "--rm",
-            "-i",
-            "-v",
-            `${dockerPath}:/app`,
-            "python:3.11-slim",
-            "python",
-            `/app/${jobId}.py`
-        ]);
 
         let output = "";
         let error = "";
 
-        // Feed input via stdin
+        // Send user input if provided
         if (input) {
-            dockerProcess.stdin.write(input);
+            pythonProcess.stdin.write(input);
         }
-        dockerProcess.stdin.end();
+        pythonProcess.stdin.end();
 
-        dockerProcess.stdout.on("data", (data) => {
+        // Collect stdout
+        pythonProcess.stdout.on("data", (data) => {
             output += data.toString();
         });
 
-        dockerProcess.stderr.on("data", (data) => {
+        // Collect stderr
+        pythonProcess.stderr.on("data", (data) => {
             error += data.toString();
         });
 
-        dockerProcess.on("close", (code) => {
-            // Clean up
+        // Handle process completion
+        pythonProcess.on("close", (code) => {
+            // Clean up temp file
             fs.unlinkSync(codePath);
 
             if (code === 0) {
