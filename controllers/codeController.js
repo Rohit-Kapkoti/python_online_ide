@@ -3,6 +3,7 @@ const runCode = require("../services/codeRunner");
 exports.executeCode = async (req, res) => {
     try {
         const { code, input } = req.body;
+        console.log(code)
         const output = await runCode(code, input);
         res.status(200).json({ output });
     } catch (err) {
